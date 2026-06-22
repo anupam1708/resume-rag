@@ -1,0 +1,32 @@
+[
+  {
+    "query": "Who has Python experience?",
+    "expected_categories": ["Data Science", "Information-Technology"],
+    "expected_skills": ["Python"],
+    "min_relevant": 3
+  },
+  {
+    "query": "Find candidates with HR background",
+    "expected_categories": ["HR"],
+    "expected_skills": [],
+    "min_relevant": 3
+  },
+  {
+    "query": "Engineers with Java and Spring experience",
+    "expected_categories": ["Information-Technology"],
+    "expected_skills": ["Java", "Spring"],
+    "min_relevant": 2
+  },
+  {
+    "query": "Who has done teaching or instructional work?",
+    "expected_categories": ["Teacher"],
+    "expected_skills": [],
+    "min_relevant": 2
+  },
+  {
+    "query": "Designers with portfolio experience",
+    "expected_categories": ["Designer", "Arts"],
+    "expected_skills": [],
+    "min_relevant": 2
+  }
+]
