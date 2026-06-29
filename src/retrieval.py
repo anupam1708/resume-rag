@@ -37,13 +37,17 @@ ROUTER_PROMPT = """Classify this resume-search query into ONE of:
    (e.g. "who has built large-scale distributed systems")
 - "hybrid": query has both filter constraints AND abstract capability
    (e.g. "senior Java engineers with fintech experience and team leadership")
+- "graph": query is relational / multi-hop — it asks about connections between
+   entities rather than a single candidate's attributes
+   (e.g. "who knows skills commonly paired with Kubernetes", "engineers from
+   fintech companies who also know Java", "candidates similar to our React team")
 
 Also extract any filterable entities as JSON.
 
 Query: "{query}"
 
 Output JSON only:
-{{"mode": "filter|semantic|hybrid",
+{{"mode": "filter|semantic|hybrid|graph",
   "skills": [string],
   "min_years": number | null,
   "domains": [string]}}
@@ -189,6 +193,23 @@ def retrieve(query: str, mode: str = "auto", top_k: int = 10) -> dict:
         )
     elif mode == "semantic":
         ranked = vector_search(query, k=top_k)
+    elif mode in ("graph", "graph_hybrid"):
+        # Lazy import avoids a circular import (graph_retrieval imports route_query).
+        from src.graph_retrieval import graph_rank
+        # Ensure we have seed entities. In auto mode the router already filled
+        # them; in explicit graph mode the route is empty, so route once here.
+        if not route.get("skills") and not route.get("domains"):
+            ent = route_query(query)
+            route["skills"], route["domains"] = ent.get("skills", []), ent.get("domains", [])
+        graph_ranked = graph_rank(
+            route.get("skills", []), route.get("domains", []),
+            k=top_k * 2 if mode == "graph_hybrid" else top_k,
+        )
+        if mode == "graph":
+            ranked = graph_ranked
+        else:  # graph_hybrid: fuse graph connectivity with semantic similarity
+            vec = vector_search(query, k=top_k * 2)
+            ranked = rrf_fuse([graph_ranked, vec], top_k=top_k)
     else:  # hybrid
         vec = vector_search(query, k=top_k * 2)
         bm = bm25_search(query, k=top_k * 2)
