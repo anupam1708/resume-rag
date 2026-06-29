@@ -108,6 +108,13 @@ curl localhost:8000/similar/c_0042
 `mode: "auto"` also works — the router was taught to send relational / multi-hop
 phrasings to `graph`.
 
+### Demo helper
+
+```bash
+python -m scripts.graph_demo          # print example queries + traversal paths (no DB/API needed)
+python -m scripts.graph_demo --run    # execute them against the built graph + print graph stats
+```
+
 ## Evaluating
 
 ```bash
