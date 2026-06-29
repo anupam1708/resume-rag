@@ -41,8 +41,10 @@ src/
   extraction.py   LLM structured extraction + section-aware chunk building. THE core IP.
   ingestion.py    Pipeline: CSV -> extract -> embed -> Postgres. Run: python -m src.ingestion
   retrieval.py    Query router + 3 retrievers (filter/vector/bm25) + RRF fusion + retrieve().
+  graph_build.py  Graph RAG: materializes graph_nodes/graph_edges from candidates. Run: python -m src.graph_build
+  graph_retrieval.py  Graph RAG retrievers: graph_search / graph_rank / similar_candidates.
   generation.py   Final cited-answer generation from retrieved candidates.
-  api.py          FastAPI app. POST /query, GET /health.
+  api.py          FastAPI app. POST /query, GET /health, GET /similar/{candidate_id}.
 scripts/
   download_data.py  Pulls Kaggle resume dataset, stratified-samples to 100 rows.
 evals/
@@ -51,6 +53,7 @@ evals/
 data/
   resumes.csv       Ingestion input. Columns: candidate_id, category, resume_text.
 schema.sql          Postgres DDL (run once against the DB).
+graph.sql           Graph RAG DDL: graph_nodes/graph_edges + undirected view (run after schema.sql + ingest).
 docker-compose.yml  Postgres + pgvector service.
 requirements.txt    Python deps.
 .env.example        Required env vars (copy to .env).
@@ -82,6 +85,8 @@ in `config.py`, you must also change `EMBED_DIM` and the `vector(384)` column in
    - `filter` → `filter_search()` SQL over JSONB, scored by summed years (rewards depth).
    - `semantic` → `vector_search()` pgvector cosine, best-chunk-per-candidate.
    - `hybrid` → `vector_search()` + `bm25_search()` fused via `rrf_fuse()` (RRF, k=60).
+   - `graph` → `graph_rank()` spreading-activation walk over the knowledge graph
+     (multi-hop/relational queries); `graph_hybrid` fuses it with vector via RRF.
    - Results hydrated with candidate metadata.
 3. `generate()` in `generation.py` produces the final answer with `[candidate_id]`
    citations, instructed to never fabricate candidates.
@@ -101,9 +106,17 @@ python scripts/download_data.py                        # fetch + sample data (ne
 ### Run
 ```bash
 python -m src.ingestion                                # ingest data/resumes.csv (idempotent)
+psql "$DATABASE_URL" -f graph.sql                      # Graph RAG: create graph tables (one-time)
+python -m src.graph_build                              # Graph RAG: materialize graph from candidates (idempotent)
 uvicorn src.api:app --reload                           # serve API on :8000
 python evals/run_evals.py                              # run LangSmith evals
 ```
+
+> **Graph RAG** is an optional add-on for learning — see `GRAPH_RAG.md`. It derives a
+> knowledge graph from the already-extracted candidate fields (no new LLM calls) and
+> adds `graph` / `graph_hybrid` retrieval modes plus `GET /similar/{candidate_id}`.
+> It requires `graph.sql` + `python -m src.graph_build` after ingestion; the core
+> filter/vector/hybrid pipeline works without it.
 
 ### Example query
 ```bash
@@ -136,6 +149,7 @@ curl -X POST localhost:8000/query -H "Content-Type: application/json" \
 ## Where to make changes
 
 - New retrieval strategy → `retrieval.py` (and wire into `retrieve()` dispatch + `mode` options in `api.py`).
+- Graph RAG (nodes/edges, traversal) → `graph.sql`, `graph_build.py`, `graph_retrieval.py`; see `GRAPH_RAG.md`.
 - Change extracted fields → update `EXTRACTION_PROMPT` and `build_chunks()` in
   `extraction.py`, the `candidates` columns/insert in `ingestion.py`, and `schema.sql`.
 - New API surface → `api.py`.
@@ -155,4 +169,6 @@ curl -X POST localhost:8000/query -H "Content-Type: application/json" \
   design decisions, scaling path, and known limitations.
 - `AWS_DEPLOYMENT.md` — production deployment blueprint (ECS Fargate, RDS, ElastiCache,
   CI/CD, IaC, cost). Reference design, not currently deployed.
+- `GRAPH_RAG.md` — Graph RAG add-on (knowledge-graph retriever): design, setup, and
+  extension ideas. Optional, for learning.
 - `README.md` — quickstart and the interview demo script.
