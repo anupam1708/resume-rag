@@ -4,13 +4,15 @@ from pydantic import BaseModel
 
 from src.retrieval import retrieve
 from src.generation import generate
+from src.neo4j_retrieval import similar_candidates
 
 app = FastAPI(title="Resume RAG")
 
 
 class Query(BaseModel):
     query: str
-    mode: str = "auto"  # "auto" | "filter" | "semantic" | "hybrid"
+    # "auto" | "filter" | "semantic" | "hybrid" | "graph" | "graph_hybrid"
+    mode: str = "auto"
     top_k: int = 10
 
 
@@ -27,6 +29,16 @@ def query_endpoint(q: Query):
             for c in result["candidates"]
         ],
         "answer": answer,
+    }
+
+
+@app.get("/similar/{candidate_id}")
+def similar_endpoint(candidate_id: str, top_k: int = 10):
+    """Graph RAG: candidates most similar to this one by shared graph neighbors (Neo4j)."""
+    ranked = similar_candidates(candidate_id, k=top_k)
+    return {
+        "candidate_id": candidate_id,
+        "similar": [{"id": cid, "score": score} for cid, score in ranked],
     }
 
 

@@ -28,5 +28,11 @@
     "expected_categories": ["Designer", "Arts"],
     "expected_skills": [],
     "min_relevant": 2
+  },
+  {
+    "query": "Engineers who know technologies commonly paired with Java",
+    "expected_categories": ["Information-Technology"],
+    "expected_skills": ["Java"],
+    "min_relevant": 2
   }
 ]

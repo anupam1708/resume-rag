@@ -21,6 +21,7 @@ from langsmith import Client
 from langsmith.evaluation import evaluate
 
 from src.retrieval import vector_search, bm25_search, rrf_fuse, filter_search, route_query
+from src.neo4j_retrieval import graph_search
 
 EVAL_SET = Path(__file__).parent / "eval_set.json"
 RESUMES = Path(__file__).parent.parent / "data" / "resumes.csv"
@@ -119,6 +120,11 @@ def target_hybrid(inputs: dict) -> dict:
     return hydrate(fused)
 
 
+def target_graph(inputs: dict) -> dict:
+    # Requires Neo4j + a built graph: python -m src.neo4j_graph_build
+    return hydrate(graph_search(inputs["query"], k=10))
+
+
 # --------------------------------------------------------------------
 # Run
 # --------------------------------------------------------------------
@@ -131,6 +137,7 @@ def main():
         ("vector-only", target_vector),
         ("bm25-only", target_bm25),
         ("hybrid-rrf", target_hybrid),
+        ("graph-neo4j", target_graph),
     ]:
         print(f"\n=== Running experiment: {name} ===")
         results = evaluate(

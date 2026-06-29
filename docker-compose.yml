@@ -15,5 +15,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # Neo4j for the Graph RAG add-on (see NEO4J_GRAPH_RAG.md).
+  # HTTP browser on :7474, Bolt driver on :7687. Default creds neo4j/password
+  # (must match NEO4J_USER / NEO4J_PASSWORD in .env).
+  neo4j:
+    image: neo4j:5
+    environment:
+      NEO4J_AUTH: neo4j/password
+    ports:
+      - "7474:7474"   # Browser UI
+      - "7687:7687"   # Bolt
+    volumes:
+      - neo4jdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   pgdata:
+  neo4jdata:
